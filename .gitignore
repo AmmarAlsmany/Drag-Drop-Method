@@ -1,0 +1,62 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+venv
+env
+
+# Build outputs
+dist
+dist-ssr
+build
+*.local
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Cache and temporary files
+thumbnail_cache/
+*.cache
+.cache
+
+# Test files and data
+test_*.py
+test_*.json
+*_test.py
+test_devices.json
+network_stream_report.json
+test_thumbnail.*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude Code
+.claude
+
+# OS generated files
+Thumbs.db
+.DS_Store

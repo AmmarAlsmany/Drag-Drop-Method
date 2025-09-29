@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* Fix drag artifacts and rendering issues */
+.absolute {
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+/* Improve canvas rendering performance and prevent artifacts */
+.border.border-gray-300 {
+  isolation: isolate;
+  contain: layout style paint;
+  transform: translateZ(0); /* Force hardware acceleration */
+}
+
+/* Prevent drag ghost artifacts */
+.drag-element {
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+/* Ensure smooth drag operations */
+.group {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* iOS Safari drag and drop support */
+.draggable-element {
+  -webkit-user-drag: element;
+  user-drag: element;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Improve touch interactions on mobile */
+.touch-optimized {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
