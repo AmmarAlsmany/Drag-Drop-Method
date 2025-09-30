@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import powerButtonIcon from '../assets/powerbutton.png';
-import largeScreenIcon from '../assets/largescreen.png';
 import { CornerHandle, SideHandle } from './ResizeHandles';
+
+// Monitor to DIDO Output mapping
+const MONITOR_OUTPUT_MAP = {
+  'videowall': 1,    // Video Wall → Output 1
+  'monitor-a': 2,    // Table Monitor A → Output 2
+  'monitor-b': 3,    // Table Monitor B → Output 3
+  'monitor-c': 4     // Table Monitor C → Output 4
+};
 
 const VideoWall = ({
   canvasRef,
@@ -18,8 +24,57 @@ const VideoWall = ({
   setDroppedImages,
   setSelectedId,
   isHovered = false,
-  isDimmed = false
+  isDimmed = false,
+  onSaveChanges,
+  onToggleWindow,
+  monitorId = "videowall"
 }) => {
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(true);
+
+  // Get DIDO output number for this monitor
+  const outputNumber = MONITOR_OUTPUT_MAP[monitorId] || 1;
+
+  // Track when changes are made
+  useEffect(() => {
+    if (droppedImages.length > 0) {
+      setHasChanges(true);
+    }
+  }, [droppedImages]);
+
+  const handleSaveChanges = async () => {
+    if (!hasChanges || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      if (onSaveChanges) {
+        await onSaveChanges(droppedImages, outputNumber);
+      }
+      setHasChanges(false);
+      console.log(`✅ Saved changes to DIDO Output ${outputNumber} (${monitorId})`);
+    } catch (error) {
+      console.error(`❌ Failed to save changes to Output ${outputNumber}:`, error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleEnable = async () => {
+    const newState = !isEnabled;
+    setIsEnabled(newState);
+
+    if (onToggleWindow) {
+      try {
+        await onToggleWindow(outputNumber, newState);
+        console.log(`✅ ${newState ? 'Enabled' : 'Disabled'} DIDO Output ${outputNumber} (${monitorId})`);
+      } catch (error) {
+        console.error(`❌ Failed to toggle Output ${outputNumber}:`, error);
+        setIsEnabled(!newState); // Revert on error
+      }
+    }
+  };
+
   return (
     <div
       className={`rounded-xl mb-4 p-4 flex flex-col transition-colors duration-300 ${
@@ -29,37 +84,48 @@ const VideoWall = ({
     >
       <div className="flex justify-between items-center mb-2">
         <div className="flex space-x-2 items-center">
-          <img src={powerButtonIcon} alt="Power" className="img-fluid cursor-pointer" />
-          <img src={largeScreenIcon} alt="Large Screen" className="img-fluid cursor-pointer" />
-
-          {/* Quad Mode Toggle */}
+          {/* Enable/Disable Button */}
           <button
-            onClick={() => {
-              console.log('🎛️ Toggling quad mode:', !quadMode);
-              setQuadMode(!quadMode);
-            }}
-            className={`px-3 py-1 text-xs rounded-full transition-colors ${
-              quadMode
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            onClick={handleToggleEnable}
+            className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+              isEnabled
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-gray-400 hover:bg-gray-500 text-white'
             }`}
-            title="Toggle quad split mode"
+            title={isEnabled ? 'Disable window' : 'Enable window'}
           >
-            {quadMode ? '4-Split ON' : '4-Split OFF'}
+            {isEnabled ? 'Enabled' : 'Disabled'}
           </button>
 
-          {quadMode && (
-            <span className="text-xs text-gray-500">
-              Auto 1/4 positioning - Resizable
+          {/* Save Changes Button */}
+          <button
+            onClick={handleSaveChanges}
+            disabled={!hasChanges || isSaving || !isEnabled}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+              hasChanges && !isSaving && isEnabled
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+            title={hasChanges ? 'Save changes to Q-SYS' : 'No changes to save'}
+          >
+            {isSaving ? (
+              <span className="flex items-center space-x-2">
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Saving...</span>
+              </span>
+            ) : (
+              'Save Changes'
+            )}
+          </button>
+
+          {hasChanges && !isSaving && isEnabled && (
+            <span className="text-xs text-orange-600 font-medium">
+              Unsaved changes
             </span>
           )}
-
-          {!quadMode && (
-            <span className="text-xs text-gray-500">
-              Free positioning - Full resize
-            </span>
-          )}
-
         </div>
         <div className="text-right">
           <h3 className="text-[#A3A5A7] text-lg font-bold">Video Wall</h3>

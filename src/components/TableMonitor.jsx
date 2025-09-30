@@ -1,13 +1,24 @@
-import React from 'react';
-import powerButtonIcon from '../assets/powerbutton.png';
-import largeScreenIcon from '../assets/largescreen.png';
-import downArrowIcon from '../assets/downarrow.png';
-import upArrowIcon from '../assets/uparrow.png';
-
+import React, { useState, useEffect } from 'react';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { CornerHandle, SideHandle } from './ResizeHandles';
 
-const TableMonitor = ({ title = "Table Monitors", height = 350, maxTiles = 4, monitorId = "default", isHovered = false, isDimmed = false }) => {
+// Monitor to DIDO Output mapping
+const MONITOR_OUTPUT_MAP = {
+  'videowall': 1,    // Video Wall → Output 1
+  'monitor-a': 2,    // Table Monitor A → Output 2
+  'monitor-b': 3,    // Table Monitor B → Output 3
+  'monitor-c': 4     // Table Monitor C → Output 4
+};
+
+const TableMonitor = ({
+  title = "Table Monitors",
+  height = 350,
+  maxTiles = 4,
+  monitorId = "default",
+  isHovered = false,
+  isDimmed = false,
+  onSaveChanges
+}) => {
   const {
     canvasRef,
     droppedImages,
@@ -23,6 +34,36 @@ const TableMonitor = ({ title = "Table Monitors", height = 350, maxTiles = 4, mo
     startResizeSide,
   } = useDragAndDrop();
 
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Get DIDO output number for this monitor
+  const outputNumber = MONITOR_OUTPUT_MAP[monitorId] || 1;
+
+  // Track changes
+  useEffect(() => {
+    if (droppedImages.length > 0) {
+      setHasChanges(true);
+    }
+  }, [droppedImages]);
+
+  const handleSaveChanges = async () => {
+    if (!hasChanges || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      if (onSaveChanges) {
+        await onSaveChanges(droppedImages, outputNumber);
+      }
+      setHasChanges(false);
+      console.log(`✅ Saved changes to DIDO Output ${outputNumber} (${monitorId})`);
+    } catch (error) {
+      console.error(`❌ Failed to save changes to Output ${outputNumber}:`, error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div
       className={`rounded-xl p-4 transition-colors duration-300 ${
@@ -31,30 +72,33 @@ const TableMonitor = ({ title = "Table Monitors", height = 350, maxTiles = 4, mo
     >
       <div className="flex justify-between items-center mb-2">
         <div className="flex space-x-2 items-center">
-          <img src={powerButtonIcon} alt="Power" className="img-fluid cursor-pointer" />
-          <img src={largeScreenIcon} alt="Large Screen" className="img-fluid cursor-pointer" />
-          <img src={downArrowIcon} alt="Down Arrow" className="img-fluid cursor-pointer" />
-          <img src={upArrowIcon} alt="Up Arrow" className="img-fluid cursor-pointer" />
-
-          {/* Quad Mode Toggle */}
+          {/* Save Changes Button */}
           <button
-            onClick={() => {
-              console.log(`🎛️ Toggling quad mode for ${title}:`, !quadMode);
-              setQuadMode(!quadMode);
-            }}
-            className={`px-3 py-1 text-xs rounded-full transition-colors ${
-              quadMode
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            onClick={handleSaveChanges}
+            disabled={!hasChanges || isSaving}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+              hasChanges && !isSaving
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
-            title="Toggle quad split mode"
+            title={hasChanges ? 'Save changes to Q-SYS' : 'No changes to save'}
           >
-            {quadMode ? '4-Split ON' : '4-Split OFF'}
+            {isSaving ? (
+              <span className="flex items-center space-x-2">
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Saving...</span>
+              </span>
+            ) : (
+              'Save Changes'
+            )}
           </button>
 
-          {quadMode && (
-            <span className="text-xs text-gray-500">
-              Auto 1/4 positioning
+          {hasChanges && !isSaving && (
+            <span className="text-xs text-orange-600 font-medium">
+              Unsaved changes
             </span>
           )}
         </div>

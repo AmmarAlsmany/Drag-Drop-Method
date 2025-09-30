@@ -4,7 +4,7 @@ export const useDragAndDrop = () => {
   const [draggedImage, setDraggedImage] = useState(null);
   const [droppedImages, setDroppedImages] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
-  const [quadMode, setQuadMode] = useState(true);
+  const [quadMode, setQuadMode] = useState(false); // Free positioning mode by default
   const canvasRef = useRef(null);
 
   // session refs to avoid stale closures
@@ -249,6 +249,55 @@ export const useDragAndDrop = () => {
   const keepAspectFromWidth = (w, aspect) => ({ w, h: Math.round(w / aspect) });
   const keepAspectFromHeight = (h, aspect) => ({ w: Math.round(h * aspect), h });
 
+  // DIDO API integration
+  const sendDIDOPositions = async (sources) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/dido/route-with-positions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sources: sources,
+          output: 1  // Always route to output 1
+        }),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      return { status: 'error', message: error.message };
+    }
+  };
+
+  const clearDIDOOutput = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/dido/clear-output', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          output: 1
+        }),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      return { status: 'error', message: error.message };
+    }
+  };
+
+  const getVPXInputNumber = (deviceId) => {
+    // Map device IDs to VPX HDMI input numbers
+    const deviceMapping = {
+      'vpx-hdmi-39': 1,  // VPX HDMI Input A = Input 1
+      'vpx-hdmi-40': 2,  // VPX HDMI Input B = Input 2
+    };
+    return deviceMapping[deviceId] || null;
+  };
+
   /** ===== Drag from sources ===== **/
   // const handleDragStart = (e, imageData) => {
   //   setDraggedImage(imageData);
@@ -326,7 +375,7 @@ export const useDragAndDrop = () => {
         const raw = e.dataTransfer.getData('application/x-drag-image');
         if (raw) payload = JSON.parse(raw);
       } catch (error) {
-        console.error('Error parsing drag data:', error);
+        // Silent error handling
       }
     }
     if (!payload) return;
@@ -355,16 +404,13 @@ export const useDragAndDrop = () => {
 
     if (quadMode) {
       // Quad mode: auto-position in next available quad
-      console.log('🔄 Quad mode active - positioning source');
       const quadIndex = findNextAvailableQuad();
       const quadPos = getQuadPosition(quadIndex);
-      console.log(`📍 Using quad ${quadIndex + 1}:`, quadPos);
 
       center = {
         x: (quadPos.x / 100) * rect.width,
         y: (quadPos.y / 100) * rect.height
       };
-      console.log(`🎯 Final position: ${center.x}x${center.y}, size: ${initW}x${initH}`);
     } else {
       // Free mode: find non-overlapping position at drop location
       center = findNonOverlappingPosition({ x, y }, { w: initW, h: initH }, droppedImages);
@@ -584,6 +630,103 @@ export const useDragAndDrop = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId]);
+
+  // Sync VPX sources to DIDO whenever droppedImages changes
+  const syncVPXSourcesToDIDO = async () => {
+    if (!quadMode) return; // Only sync in quad mode for now
+
+    // Find all VPX HDMI sources and their positions
+    const vpxSources = droppedImages
+      .filter(img => img.device && ['vpx-hdmi-39', 'vpx-hdmi-40'].includes(img.device.id))
+      .map(img => {
+        // Calculate which quad this image is in
+        const rect = getCanvasRect();
+        if (!rect) return null;
+
+        const imgPercent = {
+          x: (img.position.x / rect.width) * 100,
+          y: (img.position.y / rect.height) * 100
+        };
+
+        const quads = [
+          { x: 25, y: 25, position: 0 }, // Top-left
+          { x: 75, y: 25, position: 1 }, // Top-right
+          { x: 25, y: 75, position: 2 }, // Bottom-left
+          { x: 75, y: 75, position: 3 }, // Bottom-right
+        ];
+
+        // Find closest quad
+        let closestQuad = quads[0];
+        let minDistance = Infinity;
+
+        quads.forEach(quad => {
+          const distance = Math.sqrt(
+            Math.pow(imgPercent.x - quad.x, 2) +
+            Math.pow(imgPercent.y - quad.y, 2)
+          );
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestQuad = quad;
+          }
+        });
+
+        const inputNumber = getVPXInputNumber(img.device.id);
+        if (!inputNumber) return null;
+
+        return {
+          input: inputNumber,
+          position: closestQuad.position
+        };
+      })
+      .filter(source => source !== null);
+
+    if (vpxSources.length > 0) {
+      console.log('✅ Saved layout with', vpxSources.length, 'sources');
+      await sendDIDOPositions(vpxSources);
+    } else {
+      console.log('✅ Saved layout - cleared output');
+      await clearDIDOOutput();
+    }
+  };
+
+  // Sync to localStorage whenever droppedImages or quadMode changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('videoWallImages', JSON.stringify(droppedImages));
+      // NOTE: Auto-sync to DIDO disabled - now manual via Save Changes button
+      // syncVPXSourcesToDIDO();
+    } catch (error) {
+      // Silent error handling
+    }
+  }, [droppedImages]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('videoWallQuadMode', JSON.stringify(quadMode));
+    } catch (error) {
+      // Silent error handling
+    }
+  }, [quadMode]);
+
+  // Load initial state from localStorage
+  useEffect(() => {
+    try {
+      const savedImages = localStorage.getItem('videoWallImages');
+      const savedQuadMode = localStorage.getItem('videoWallQuadMode');
+
+      if (savedImages) {
+        const parsed = JSON.parse(savedImages);
+        if (Array.isArray(parsed)) {
+          setDroppedImages(parsed);
+        }
+      }
+      if (savedQuadMode) {
+        setQuadMode(JSON.parse(savedQuadMode));
+      }
+    } catch (error) {
+      // Silent error handling
+    }
+  }, []);
 
   useEffect(() => {
     return () => {

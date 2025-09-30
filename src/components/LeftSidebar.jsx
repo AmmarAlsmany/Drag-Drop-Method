@@ -12,6 +12,26 @@ import logoutIcon from '../assets/icon/LogoutIcon.png';
 
 // Test streaming devices
 const TEST_DEVICES = [
+    {
+    id: 'vpx-hdmi-40',
+    name: 'VPX HDMI Input B',
+    ip: '192.168.100.40',
+    type: 'HDMI Source',
+    manufacturer: 'Aurora VPX',
+    streamUrl: 'http://192.168.100.40:8080/?action=stream&w=960&h=540&fps=15',
+    confidence: 100,
+    inputNumber: 2  // Aurora DIDO Input 2
+  },
+    {
+    id: 'vpx-hdmi-39',
+    name: 'VPX HDMI Input A',
+    ip: '192.168.100.39',
+    type: 'HDMI Source',
+    manufacturer: 'Aurora VPX',
+    streamUrl: 'http://192.168.100.39:8080/?action=stream&w=960&h=540&fps=15',
+    confidence: 100,
+    inputNumber: 1  // Aurora DIDO Input 1
+  },
   {
     id: 'test-1',
     name: 'Security Camera 1',
@@ -19,7 +39,8 @@ const TEST_DEVICES = [
     type: 'IP Camera',
     manufacturer: 'MJPEG Stream',
     streamUrl: 'http://77.222.181.11:8080/mjpg/video.mjpg',
-    confidence: 100
+    confidence: 100,
+    inputNumber: 3  // Aurora DIDO Input 3
   },
   {
     id: 'test-2',
@@ -28,7 +49,8 @@ const TEST_DEVICES = [
     type: 'IP Camera',
     manufacturer: 'MJPEG Stream',
     streamUrl: 'http://honjin1.miemasu.net/nphMotionJpeg?Resolution=640x480&Quality=Standard',
-    confidence: 100
+    confidence: 100,
+    inputNumber: 4  // Aurora DIDO Input 4
   },
   {
     id: 'test-3',
@@ -37,7 +59,8 @@ const TEST_DEVICES = [
     type: 'IP Camera',
     manufacturer: 'MJPEG Stream',
     streamUrl: 'http://61.211.241.239/nphMotionJpeg?Resolution=320x240&Quality=Standard',
-    confidence: 100
+    confidence: 100,
+    inputNumber: 1  // Can reuse inputs for different scenarios
   },
   {
     id: 'test-5',
@@ -46,26 +69,9 @@ const TEST_DEVICES = [
     type: 'IP Camera',
     manufacturer: 'MJPEG Stream',
     streamUrl: 'http://158.58.130.148/mjpg/video.mjpg',
-    confidence: 100
+    confidence: 100,
+    inputNumber: 2  // Can reuse inputs for different scenarios
   },
-  {
-    id: 'vpx-encoder',
-    name: 'VPX Encoder Stream',
-    ip: '192.168.100.40',
-    type: 'Video Encoder',
-    manufacturer: 'Aurora VPX',
-    streamUrl: 'http://192.168.100.40:8080/?action=stream&w=960&h=540&fps=15',
-    confidence: 100
-  },
-  {
-    id: 'vpx-decoder',
-    name: 'VPX Decoder Stream',
-    ip: '192.168.100.41',
-    type: 'Video Decoder',
-    manufacturer: 'Aurora VPX',
-    streamUrl: 'http://192.168.100.41:8080/?action=stream&w=960&h=540&fps=15',
-    confidence: 100
-  }
 ];
 
 const LeftSidebar = ({ onDragStart }) => {
@@ -113,6 +119,7 @@ const LeftSidebar = ({ onDragStart }) => {
         'PC': '#ef4444',
         'Video Encoder': '#ec4899',
         'Video Decoder': '#06b6d4',
+        'HDMI Source': '#f97316',
         'Unknown': '#6b7280'
       };
 
@@ -132,7 +139,7 @@ const LeftSidebar = ({ onDragStart }) => {
     useEffect(() => {
       console.log('🚀 StreamThumbnail mounting for device:', device.name);
 
-      const thumbnailUrl = `http://192.168.100.54:5000/api/thumbnail?url=${encodeURIComponent(device.streamUrl)}`;
+      const thumbnailUrl = `http://localhost:5000/api/thumbnail?url=${encodeURIComponent(device.streamUrl)}`;
       console.log('📡 Making request to:', thumbnailUrl);
 
       setIsLoading(true);
