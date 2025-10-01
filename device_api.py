@@ -6,16 +6,24 @@ import json
 import requests
 import io
 import os
+import sys
 from datetime import datetime, timedelta
 from network_scanner import NetworkStreamScanner
 import socket
 import struct
 from PIL import Image, ImageDraw, ImageFont
 
+# Fix Windows console encoding for emoji characters
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
+
 app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://192.168.100.54:5173", "http://192.168.100.54:5174"],
+        "origins": ["*"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
@@ -511,12 +519,13 @@ class QSysAuroraDIDO:
 
         self.request_id += 1
 
-        # Convert to JSON and add null terminator
-        message = json.dumps(command) + "\x00"
+        # Convert to JSON string (compact, no spaces) and add null terminator
+        message = json.dumps(command, separators=(',', ':')) + "\x00"
 
         try:
             self.sock.sendall(message.encode())
-            print(f"Sent: {json.dumps(command, indent=2)}")
+            print(f"Sent (compact): {message[:-1]}\\x00")  # Show actual compact message
+            # print(f"Sent (pretty): {json.dumps(command, indent=2)}")  # Commented out for clarity
 
             # Receive response with timeout
             self.sock.settimeout(5.0)  # 5 second timeout
@@ -975,42 +984,56 @@ def dido_route_with_coordinates():
             if not all(coord in coords for coord in required_coords):
                 return jsonify({'status': 'error', 'message': 'Coordinates must include x, y, w, h'}), 400
 
-        # Connect to Q-SYS
-        if not qsys.connect():
+        # Connect to Q-SYS with retry mechanism
+        if not ensure_qsys_connection():
             return jsonify({'status': 'error', 'message': 'Failed to connect to Q-SYS Core'}), 500
 
         try:
             results = []
 
-            # Step 1: Route inputs to intermediate outputs
-            # IMPORTANT: Use outputs that are NOT the final display output
-            # If final output is 1, use outputs 2,3,4 as intermediate
-            # If final output is 2, use outputs 1,3,4 as intermediate, etc.
-            available_outputs = [1, 2, 3, 4]
-            available_outputs.remove(output_num)  # Don't use final output as intermediate
-
             print(f"\n📍 Processing {len(sources)} sources for Output {output_num}")
-            print(f"📋 Using outputs {available_outputs} as intermediate (preserving Output {output_num} for final display)")
+
+            # Step 1: Route inputs to intermediate outputs
+            print(f"\n🔄 Step 1: Routing inputs to intermediate outputs")
+            available_outputs = [1, 2, 3, 4]
+            available_outputs.remove(output_num)
 
             for i, source in enumerate(sources):
+                if i >= len(available_outputs):
+                    break
                 input_num = source['input']
-                intermediate_output = available_outputs[i]  # Use available outputs
+                intermediate_output = available_outputs[i]
 
-                print(f"🔄 Step 1.{i+1}: Routing Input {input_num} → Output {intermediate_output} (intermediate)")
+                print(f"   Routing Input {input_num} → Output {intermediate_output}")
                 route_result = qsys.route_input_to_output(input_num, intermediate_output)
-                print(f"   Result: {route_result}")
+
+                if route_result.get('status') == 'error':
+                    print(f"   ⚠️ Command failed, attempting reconnection...")
+                    if ensure_qsys_connection():
+                        route_result = qsys.route_input_to_output(input_num, intermediate_output)
+
                 results.append({
-                    'command': 'route_to_intermediate',
+                    'command': 'route_input',
                     'input': input_num,
-                    'intermediate_output': intermediate_output,
+                    'output': intermediate_output,
                     'result': route_result
                 })
-                time.sleep(0.5)
+                time.sleep(0.3)
 
             # Step 2: Enable windowing
             print(f"\n🪟 Step 2: Enabling windowing on Output {output_num}")
+
+            if not ensure_qsys_connection():
+                return jsonify({'status': 'error', 'message': 'Connection lost before windowing step'}), 500
+
             windowing_result = qsys.set_windowing_output(f"out{output_num}")
             print(f"   Result: {windowing_result}")
+
+            if windowing_result.get('status') == 'error':
+                print(f"   ⚠️ Command failed, attempting reconnection...")
+                if ensure_qsys_connection():
+                    windowing_result = qsys.set_windowing_output(f"out{output_num}")
+
             results.append({
                 'command': 'enable_windowing',
                 'output': output_num,
@@ -1018,61 +1041,55 @@ def dido_route_with_coordinates():
             })
             time.sleep(0.5)
 
-            # Step 3: Configure windows with custom coordinates
+            # Step 3: Configure window positions
+            print(f"\n📐 Step 3: Configuring window positions")
+
+            # Ensure connection is alive
+            if not ensure_qsys_connection():
+                return jsonify({'status': 'error', 'message': 'Connection lost before window configuration'}), 500
+
+            controls = []
+            used_windows = set()
+
             for i, source in enumerate(sources):
-                window_num = i + 1
-                intermediate_output = available_outputs[i]  # Match the intermediate output we routed to
+                input_num = source['input']
+                window_num = i + 1  # Use index to assign window (1st source = Window 1)
+                used_windows.add(window_num)
                 coords = source['coordinates']
 
-                print(f"\n🪟 Step 3.{i+1}: Configuring Window {window_num} to display Output {intermediate_output}")
+                print(f"   📐 Window {window_num}: Position x={coords['x']}, y={coords['y']}, w={coords['w']}, h={coords['h']}")
 
-                # Set window source (which output to display)
-                print(f"   📺 Setting Window {window_num} source to Output {intermediate_output}")
-                source_result = qsys.set_window_source(window_num, intermediate_output)
-                print(f"   Result: {source_result}")
-                results.append({
-                    'command': 'set_window_source',
-                    'window': window_num,
-                    'source_output': intermediate_output,
-                    'result': source_result
-                })
-                time.sleep(0.5)
+                # Add window controls: position and enable only (no routing - windows show intermediate outputs)
+                controls.extend([
+                    {"Name": f"Window{window_num}Enable", "Type": "Boolean", "Value": True},
+                    {"Name": f"Window{window_num}_x", "Type": "Text", "Value": str(coords['x'])},
+                    {"Name": f"Window{window_num}_y", "Type": "Text", "Value": str(coords['y'])},
+                    {"Name": f"Window{window_num}_w", "Type": "Text", "Value": str(coords['w'])},
+                    {"Name": f"Window{window_num}_h", "Type": "Text", "Value": str(coords['h'])}
+                ])
 
-                # Enable window
-                print(f"   ✅ Enabling Window {window_num}")
-                enable_result = qsys.enable_window(window_num, True)
-                print(f"   Result: {enable_result}")
-                results.append({
-                    'command': 'enable_window',
-                    'window': window_num,
-                    'result': enable_result
-                })
-                time.sleep(0.5)
+            # Disable unused windows
+            for window_num in range(1, 5):
+                if window_num not in used_windows:
+                    controls.append(
+                        {"Name": f"Window{window_num}Enable", "Type": "Boolean", "Value": False}
+                    )
 
-                # Set custom coordinates
-                print(f"   📐 Setting Window {window_num} position: x={coords['x']}, y={coords['y']}, w={coords['w']}, h={coords['h']}")
-                position_result = qsys.set_window_position(
-                    window_num,
-                    x=coords['x'],
-                    y=coords['y'],
-                    w=coords['w'],
-                    h=coords['h']
-                )
-                print(f"   Result: {position_result}")
-                results.append({
-                    'command': 'set_coordinates',
-                    'window': window_num,
-                    'coordinates': coords,
-                    'result': position_result
-                })
-                time.sleep(0.5)
+            # Send all window configurations in ONE batch command
+            print(f"   📤 Sending batch command with {len(controls)} controls")
+            batch_result = qsys.send_command(controls)
+            print(f"   Result: {batch_result}")
 
-            # Check if operations were successful
-            success_count = sum(1 for r in results if r.get('result', {}).get('status') == 'success')
+            results.append({
+                'command': 'update_window_positions',
+                'windows_updated': len(sources),
+                'controls_sent': len(controls),
+                'result': batch_result
+            })
 
             return jsonify({
-                'status': 'success' if success_count > 0 else 'error',
-                'message': f'Positioned {len(sources)} sources with custom coordinates on output {output_num}',
+                'status': 'success' if batch_result.get('status') == 'success' else 'error',
+                'message': f'Updated positions for {len(sources)} windows on output {output_num}',
                 'operations': results
             })
         finally:

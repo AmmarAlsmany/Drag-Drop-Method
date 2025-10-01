@@ -23,12 +23,12 @@ const TEST_DEVICES = [
     inputNumber: 2  // Aurora DIDO Input 2
   },
     {
-    id: 'vpx-hdmi-39',
+    id: 'vpx-hdmi-42',
     name: 'VPX HDMI Input A',
-    ip: '192.168.100.39',
+    ip: '192.168.100.42',
     type: 'HDMI Source',
     manufacturer: 'Aurora VPX',
-    streamUrl: 'http://192.168.100.39:8080/?action=stream&w=960&h=540&fps=15',
+    streamUrl: 'http://192.168.100.42:8080/?action=stream&w=960&h=540&fps=15',
     confidence: 100,
     inputNumber: 1  // Aurora DIDO Input 1
   },
@@ -137,17 +137,16 @@ const LeftSidebar = ({ onDragStart }) => {
     };
 
     useEffect(() => {
-      console.log('🚀 StreamThumbnail mounting for device:', device.name);
 
-      const thumbnailUrl = `http://localhost:5000/api/thumbnail?url=${encodeURIComponent(device.streamUrl)}`;
-      console.log('📡 Making request to:', thumbnailUrl);
+      
+
+      const thumbnailUrl = `http://${window.location.hostname}:5000/api/thumbnail?url=${encodeURIComponent(device.streamUrl)}`;
 
       setIsLoading(true);
       setHasError(false);
 
       fetch(thumbnailUrl)
         .then(response => {
-          console.log('📥 Response received:', response.status, response.ok);
 
           if (response.ok) {
             return response.blob();
@@ -155,12 +154,10 @@ const LeftSidebar = ({ onDragStart }) => {
           throw new Error(`HTTP ${response.status} - ${response.statusText}`);
         })
         .then(blob => {
-          console.log('🖼️ Blob received, size:', blob.size);
           const url = URL.createObjectURL(blob);
           setThumbnailSrc(url);
           setIsLoading(false);
           setHasError(false);
-          console.log('✅ Thumbnail loaded successfully for:', device.name);
         })
         .catch(error => {
           console.error('❌ Thumbnail error for:', device.name, error);
@@ -193,7 +190,6 @@ const LeftSidebar = ({ onDragStart }) => {
             }
           }}
           onLoad={() => {
-            console.log('🖼️ Image onLoad for:', device.name);
           }}
         />
         <div className="absolute top-1 right-1 text-xs text-white bg-black/50 rounded px-1">

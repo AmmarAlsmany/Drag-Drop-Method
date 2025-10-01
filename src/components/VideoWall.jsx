@@ -38,10 +38,10 @@ const VideoWall = ({
 
   // Track when changes are made
   useEffect(() => {
-    if (droppedImages.length > 0) {
+    if (droppedImages.length > 0 && !hasChanges) {
       setHasChanges(true);
     }
-  }, [droppedImages]);
+  }, [droppedImages, hasChanges]);
 
   const handleSaveChanges = async () => {
     if (!hasChanges || isSaving) return;
@@ -136,7 +136,8 @@ const VideoWall = ({
       {/* Canvas */}
       <div
         ref={canvasRef}
-        className={`flex-1 border border-gray-300 rounded-xl p-4 relative overflow-hidden transition-colors duration-300 ${
+        data-canvas
+        className={`flex-1 border border-gray-300 rounded-xl relative overflow-hidden transition-colors duration-300 ${
           isDimmed ? 'bg-gray-300' : 'bg-white'
         }`}
         style={{

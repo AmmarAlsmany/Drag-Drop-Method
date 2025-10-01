@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
             # Step 3: Set Window 1 position and size
             print("\n=== Step 3: Setting Window 1 position ===")
-            controller.set_window_position(1, x=0, y=0, w=50, h=50)
+            controller.set_window_position(1, x=0, y=0, w=50, h=20)
             time.sleep(1.0)
             
             # # Example 2: Set Window 2 position
