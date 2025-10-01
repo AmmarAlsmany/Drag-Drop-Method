@@ -137,9 +137,6 @@ const LeftSidebar = ({ onDragStart }) => {
     };
 
     useEffect(() => {
-
-      
-
       const thumbnailUrl = `http://${window.location.hostname}:5000/api/thumbnail?url=${encodeURIComponent(device.streamUrl)}`;
 
       setIsLoading(true);
