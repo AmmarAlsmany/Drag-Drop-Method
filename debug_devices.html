@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Device API Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        pre { background: #000; padding: 15px; border: 1px solid #0f0; overflow: auto; }
+        button { padding: 10px 20px; background: #0f0; color: #000; border: none; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0a0; }
+        .device { background: #222; padding: 10px; margin: 10px 0; border-left: 3px solid #0f0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Device API Debug</h1>
+    <button onclick="fetchDevices()">Fetch Devices from API</button>
+    <button onclick="testThumbnail()">Test Thumbnail API</button>
+
+    <h2>Device Data:</h2>
+    <pre id="output">Click "Fetch Devices" to see what the backend is returning...</pre>
+
+    <script>
+        async function fetchDevices() {
+            try {
+                const response = await fetch('http://192.168.100.54:5000/api/devices');
+                const data = await response.json();
+
+                document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+
+                // Show devices in a readable format
+                if (data.data && data.data.devices) {
+                    let html = '<h3>Found ' + data.data.devices.length + ' devices:</h3>';
+                    data.data.devices.forEach(device => {
+                        html += `
+                        <div class="device">
+                            <strong>${device.name}</strong> (${device.ip})<br>
+                            Type: ${device.type}<br>
+                            <strong>SRC:</strong> ${device.src || 'NO SRC'}<br>
+                            <strong>Stream URL:</strong> ${device.streamUrl || 'NO STREAM URL'}<br>
+                            Ports: ${device.ports.join(', ')}
+                        </div>`;
+                    });
+                    document.getElementById('output').innerHTML = html;
+                }
+            } catch (error) {
+                document.getElementById('output').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function testThumbnail() {
+            const url = prompt('Enter stream URL to test:', 'http://192.168.100.40:8080/?action=stream&w=960&h=540&fps=15');
+            if (!url) return;
+
+            const thumbnailUrl = `http://127.0.0.1:5000/api/thumbnail?url=${encodeURIComponent(url)}`;
+
+            try {
+                const response = await fetch(thumbnailUrl);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const imgUrl = URL.createObjectURL(blob);
+
+                    const img = document.createElement('img');
+                    img.src = imgUrl;
+                    img.style.maxWidth = '100%';
+                    img.style.border = '2px solid #0f0';
+
+                    const output = document.getElementById('output');
+                    output.innerHTML = '<h3>✅ Thumbnail loaded successfully:</h3>';
+                    output.appendChild(img);
+                } else {
+                    document.getElementById('output').textContent = `❌ Failed: HTTP ${response.status}`;
+                }
+            } catch (error) {
+                document.getElementById('output').textContent = '❌ Error: ' + error.message;
+            }
+        }
+
+        // Auto-fetch on load
+        window.onload = fetchDevices;
+    </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CornerHandle, SideHandle } from './ResizeHandles';
+import WindowPropertiesModal from './WindowPropertiesModal';
 
 // Monitor to DIDO Output mapping
 const MONITOR_OUTPUT_MAP = {
@@ -27,21 +28,59 @@ const VideoWall = ({
   isDimmed = false,
   onSaveChanges,
   onToggleWindow,
-  monitorId = "videowall"
+  monitorId = "videowall",
+  applyPresetLayout
 }) => {
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEnabled, setIsEnabled] = useState(true);
+  const [editingWindow, setEditingWindow] = useState(null);
+  const [lastSavedState, setLastSavedState] = useState(null);
 
   // Get DIDO output number for this monitor
   const outputNumber = MONITOR_OUTPUT_MAP[monitorId] || 1;
 
-  // Track when changes are made
+  // Track when changes are made by comparing with last saved state
   useEffect(() => {
-    if (droppedImages.length > 0 && !hasChanges) {
-      setHasChanges(true);
+    if (!lastSavedState) {
+      // First load - no changes yet
+      setLastSavedState(JSON.stringify(droppedImages));
+      setHasChanges(false);
+      return;
     }
-  }, [droppedImages, hasChanges]);
+
+    const currentState = JSON.stringify(droppedImages);
+    const hasActualChanges = currentState !== lastSavedState;
+    setHasChanges(hasActualChanges);
+  }, [droppedImages]);
+
+  // Handle touch drop events (for mobile/iPad)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleCustomDrop = (e) => {
+      if (e.detail && onDrop) {
+        // Create synthetic event with the touch data
+        const syntheticEvent = {
+          preventDefault: () => {},
+          stopPropagation: () => {},
+          clientX: e.clientX || 0,
+          clientY: e.clientY || 0,
+          detail: e.detail,
+          dataTransfer: {
+            getData: () => ''
+          }
+        };
+        onDrop(syntheticEvent);
+      }
+    };
+
+    canvas.addEventListener('drop', handleCustomDrop);
+    return () => {
+      canvas.removeEventListener('drop', handleCustomDrop);
+    };
+  }, [canvasRef, onDrop]);
 
   const handleSaveChanges = async () => {
     if (!hasChanges || isSaving) return;
@@ -51,6 +90,8 @@ const VideoWall = ({
       if (onSaveChanges) {
         await onSaveChanges(droppedImages, outputNumber);
       }
+      // Update last saved state to current state
+      setLastSavedState(JSON.stringify(droppedImages));
       setHasChanges(false);
       console.log(`✅ Saved changes to DIDO Output ${outputNumber} (${monitorId})`);
     } catch (error) {
@@ -73,6 +114,17 @@ const VideoWall = ({
         setIsEnabled(!newState); // Revert on error
       }
     }
+  };
+
+  const handleApplyWindowProperties = (windowId, newPosition, newSize) => {
+    setDroppedImages((prev) =>
+      prev.map((img) =>
+        img.id === windowId
+          ? { ...img, position: newPosition, size: newSize }
+          : img
+      )
+    );
+    setHasChanges(true);
   };
 
   return (
@@ -151,6 +203,12 @@ const VideoWall = ({
         {droppedImages.map((image, idx) => (
           <div
             key={image.id}
+            draggable
+            onDragStart={(e) => {
+              // Enable reverse drag - set window ID
+              e.dataTransfer.setData('application/x-window-id', image.id);
+              e.dataTransfer.effectAllowed = 'move';
+            }}
             onPointerDown={(e) => {
               // bring to front
               setDroppedImages((prev) => {
@@ -164,7 +222,7 @@ const VideoWall = ({
               setSelectedId(image.id);
               startMove(e, image.id);
             }}
-            className="absolute rounded-lg overflow-hidden group"
+            className="absolute rounded-lg overflow-hidden group cursor-move"
             style={{
               left: `${image.position.x - image.size.w / 2}px`,
               top: `${image.position.y - image.size.h / 2}px`,
@@ -174,7 +232,25 @@ const VideoWall = ({
               zIndex: idx + 1,
             }}
           >
-            {/* Remove (X) button — show on hover */}
+            {/* Edit button — iPad-optimized size (always visible) */}
+            <button
+              type="button"
+              aria-label="Edit properties"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingWindow(image);
+              }}
+              className="absolute top-2 left-2 inline-flex items-center justify-center rounded-full
+                         bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white w-11 h-11 shadow-lg transition-all"
+              title="Edit window properties"
+            >
+              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+            </button>
+
+            {/* Remove (X) button — iPad-optimized size (always visible) */}
             <button
               type="button"
               aria-label="Remove"
@@ -184,11 +260,11 @@ const VideoWall = ({
                 setDroppedImages((prev) => prev.filter((img) => img.id !== image.id));
                 if (selectedId === image.id) setSelectedId(null);
               }}
-              className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 inline-flex items-center justify-center rounded-full 
-                         bg-red-600 hover:bg-red-700 text-white w-6 h-6 sm:w-7 sm:h-7 shadow-md opacity-0 group-hover:opacity-100"
-              title="Remove tile"
+              className="absolute top-2 right-2 inline-flex items-center justify-center rounded-full
+                         bg-red-600 hover:bg-red-700 active:bg-red-800 text-white w-11 h-11 shadow-lg transition-all"
+              title="Remove window"
             >
-              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 sm:w-4 sm:h-4" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="w-6 h-6" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               </svg>
             </button>
@@ -216,6 +292,16 @@ const VideoWall = ({
           </div>
         ))}
       </div>
+
+      {/* Window Properties Modal */}
+      {editingWindow && (
+        <WindowPropertiesModal
+          window={editingWindow}
+          onClose={() => setEditingWindow(null)}
+          onApply={handleApplyWindowProperties}
+          canvasRect={canvasRef.current?.getBoundingClientRect()}
+        />
+      )}
     </div>
   );
 };

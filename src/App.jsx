@@ -27,9 +27,18 @@ function App() {
     startMove,
     startResizeCorner,
     startResizeSide,
+    applyPresetLayout,
   } = useDragAndDrop();
 
   const [hoveredDisplay, setHoveredDisplay] = useState(null);
+
+  // Handle reverse drag - remove window when dragged to sidebar
+  const handleRemoveWindow = (windowId) => {
+    setDroppedImages((prev) => prev.filter((img) => img.id !== parseInt(windowId)));
+    if (selectedId === parseInt(windowId)) {
+      setSelectedId(null);
+    }
+  };
 
   // Initialize BUControl WebSocket connection
   useEffect(() => {
@@ -81,6 +90,12 @@ function App() {
         const wClamped = Math.max(0, Math.min(100, wPercent));
         const hClamped = Math.max(0, Math.min(100, hPercent));
 
+        // Subtract 1 from each coordinate before sending to Q-SYS (ensure minimum 0)
+        const xFinal = Math.max(0, xClamped - 1);
+        const yFinal = Math.max(0, yClamped - 1);
+        const wFinal = Math.max(0, wClamped - 1);
+        const hFinal = Math.max(0, hClamped - 1);
+
         const inputNumber =
           img.inputNumber || img.input || img.device?.inputNumber || index + 1;
 
@@ -90,16 +105,17 @@ function App() {
           `\n   Position (center): x=${img.position.x}, y=${img.position.y}`,
           `\n   Position (top-left): x=${topLeftX}, y=${topLeftY}`,
           `\n   Size: w=${img.size.w}, h=${img.size.h}`,
-          `\n   Sent to Q-SYS: x=${xClamped}%, y=${yClamped}%, w=${wClamped}%, h=${hClamped}%`
+          `\n   Before adjustment: x=${xClamped}%, y=${yClamped}%, w=${wClamped}%, h=${hClamped}%`,
+          `\n   Sent to Q-SYS: x=${xFinal}%, y=${yFinal}%, w=${wFinal}%, h=${hFinal}%`
         );
 
         return {
           input: inputNumber,
           coordinates: {
-            x: xClamped,
-            y: yClamped,
-            w: wClamped,
-            h: hClamped,
+            x: xFinal,
+            y: yFinal,
+            w: wFinal,
+            h: hFinal,
           },
         };
       });
@@ -169,7 +185,7 @@ function App() {
   return (
     <div className="h-screen py-1 pl-1 bg-[#E4E4E4] flex">
       {/* Left Sidebar */}
-      <LeftSidebar onDragStart={handleDragStart} />
+      <LeftSidebar onDragStart={handleDragStart} onRemoveWindow={handleRemoveWindow} />
 
       {/* Right column: Displays */}
       <div
@@ -203,6 +219,7 @@ function App() {
               monitorId="videowall"
               onSaveChanges={handleSaveChanges}
               onToggleWindow={handleToggleWindow}
+              applyPresetLayout={applyPresetLayout}
             />
           </div>
 

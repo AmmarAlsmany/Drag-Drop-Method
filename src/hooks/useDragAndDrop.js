@@ -367,12 +367,18 @@ export const useDragAndDrop = () => {
   // };
   const handleDrop = async (e) => {
     e.preventDefault();
-  
+
     // NEW: try to read payload from dataTransfer (works across components)
     let payload = draggedImage;
+
+    // Check for touch drop (custom event)
+    if (!payload && e.detail) {
+      payload = e.detail;
+    }
+
     if (!payload) {
       try {
-        const raw = e.dataTransfer.getData('application/x-drag-image');
+        const raw = e.dataTransfer?.getData('application/x-drag-image');
         if (raw) payload = JSON.parse(raw);
       } catch (error) {
         // Silent error handling
@@ -398,9 +404,32 @@ export const useDragAndDrop = () => {
 
     let initW, initH, center;
 
-    // Always size to 1/4 of the display area
-    initW = rect.width / 2;
-    initH = rect.height / 2;
+    // Smart sizing based on number of existing windows
+    const numWindows = droppedImages.length;
+
+    if (numWindows === 0) {
+      // First window: use 50% width, calculate height from aspect ratio
+      initW = rect.width * 0.5;
+      initH = initW / aspect;
+    } else if (numWindows === 1) {
+      // Second window: use 40% width
+      initW = rect.width * 0.4;
+      initH = initW / aspect;
+    } else if (numWindows === 2) {
+      // Third window: use 33% width
+      initW = rect.width * 0.33;
+      initH = initW / aspect;
+    } else {
+      // 4+ windows: use 25% width (quarter screen)
+      initW = rect.width * 0.25;
+      initH = initW / aspect;
+    }
+
+    // Ensure doesn't exceed canvas height
+    if (initH > rect.height * 0.5) {
+      initH = rect.height * 0.5;
+      initW = initH * aspect;
+    }
 
     if (quadMode) {
       // Quad mode: auto-position in next available quad
@@ -411,6 +440,10 @@ export const useDragAndDrop = () => {
         x: (quadPos.x / 100) * rect.width,
         y: (quadPos.y / 100) * rect.height
       };
+
+      // In quad mode, size to fit the quad
+      initW = rect.width * 0.5;
+      initH = rect.height * 0.5;
     } else {
       // Free mode: find non-overlapping position at drop location
       center = findNonOverlappingPosition({ x, y }, { w: initW, h: initH }, droppedImages);
@@ -541,27 +574,41 @@ export const useDragAndDrop = () => {
         let w = img.size.w;
         let h = img.size.h;
 
+        // Get aspect ratio (width / height) - default to 16:9 if not available
+        const aspect = s.aspect || (img.aspect || (16/9));
+
         if (s.type === 'corner') {
           // Calculate mouse movement delta
           const deltaX = px - s.startMouseX;
           const deltaY = py - s.startMouseY;
 
-          // Apply delta based on corner
+          // Use the larger delta to maintain aspect ratio
           let newW = s.startSize.w;
           let newH = s.startSize.h;
 
           if (s.corner === 'se') {
-            newW = Math.max(MIN_W, s.startSize.w + deltaX);
-            newH = Math.max(MIN_H, s.startSize.h + deltaY);
+            // Use diagonal distance to resize proportionally
+            const avgDelta = (deltaX + deltaY) / 2;
+            newW = Math.max(MIN_W, s.startSize.w + avgDelta);
+            newH = newW / aspect;
           } else if (s.corner === 'sw') {
-            newW = Math.max(MIN_W, s.startSize.w - deltaX);
-            newH = Math.max(MIN_H, s.startSize.h + deltaY);
+            const avgDelta = (-deltaX + deltaY) / 2;
+            newW = Math.max(MIN_W, s.startSize.w + avgDelta);
+            newH = newW / aspect;
           } else if (s.corner === 'ne') {
-            newW = Math.max(MIN_W, s.startSize.w + deltaX);
-            newH = Math.max(MIN_H, s.startSize.h - deltaY);
+            const avgDelta = (deltaX - deltaY) / 2;
+            newW = Math.max(MIN_W, s.startSize.w + avgDelta);
+            newH = newW / aspect;
           } else if (s.corner === 'nw') {
-            newW = Math.max(MIN_W, s.startSize.w - deltaX);
-            newH = Math.max(MIN_H, s.startSize.h - deltaY);
+            const avgDelta = (-deltaX - deltaY) / 2;
+            newW = Math.max(MIN_W, s.startSize.w + avgDelta);
+            newH = newW / aspect;
+          }
+
+          // Ensure minimum height
+          if (newH < MIN_H) {
+            newH = MIN_H;
+            newW = newH * aspect;
           }
 
           // Keep within canvas bounds
@@ -569,33 +616,37 @@ export const useDragAndDrop = () => {
           if (rect) {
             const maxW = 2 * Math.min(s.center.x, rect.width - s.center.x);
             const maxH = 2 * Math.min(s.center.y, rect.height - s.center.y);
-            newW = Math.min(newW, maxW);
-            newH = Math.min(newH, maxH);
+
+            // If width exceeds bounds, constrain by width
+            if (newW > maxW) {
+              newW = maxW;
+              newH = newW / aspect;
+            }
+
+            // If height exceeds bounds, constrain by height
+            if (newH > maxH) {
+              newH = maxH;
+              newW = newH * aspect;
+            }
           }
 
           w = newW;
           h = newH;
         } else {
-          // Edge resize using delta movement
+          // Edge resize - also maintain aspect ratio
           const deltaX = px - s.startMouseX;
           const deltaY = py - s.startMouseY;
 
-          if (s.edge === 'e') {
-            // East edge: increase width
-            w = Math.max(MIN_W, s.startSize.w + deltaX);
-            h = s.startSize.h;
-          } else if (s.edge === 'w') {
-            // West edge: increase width in opposite direction
-            w = Math.max(MIN_W, s.startSize.w - deltaX);
-            h = s.startSize.h;
-          } else if (s.edge === 's') {
-            // South edge: increase height
-            w = s.startSize.w;
-            h = Math.max(MIN_H, s.startSize.h + deltaY);
-          } else if (s.edge === 'n') {
-            // North edge: increase height in opposite direction
-            w = s.startSize.w;
-            h = Math.max(MIN_H, s.startSize.h - deltaY);
+          if (s.edge === 'e' || s.edge === 'w') {
+            // Horizontal resize: adjust width and calculate height from aspect ratio
+            const delta = s.edge === 'e' ? deltaX : -deltaX;
+            w = Math.max(MIN_W, s.startSize.w + delta);
+            h = w / aspect;
+          } else if (s.edge === 's' || s.edge === 'n') {
+            // Vertical resize: adjust height and calculate width from aspect ratio
+            const delta = s.edge === 's' ? deltaY : -deltaY;
+            h = Math.max(MIN_H, s.startSize.h + delta);
+            w = h * aspect;
           }
 
           // Keep within canvas bounds
@@ -603,8 +654,15 @@ export const useDragAndDrop = () => {
           if (rect) {
             const maxW = 2 * Math.min(center.x, rect.width - center.x);
             const maxH = 2 * Math.min(center.y, rect.height - center.y);
-            w = Math.min(w, maxW);
-            h = Math.min(h, maxH);
+
+            if (w > maxW) {
+              w = maxW;
+              h = w / aspect;
+            }
+            if (h > maxH) {
+              h = maxH;
+              w = h * aspect;
+            }
           }
         }
 
@@ -617,6 +675,105 @@ export const useDragAndDrop = () => {
     resizingRef.current = null;
     window.removeEventListener('pointermove', onResizeMove);
     window.removeEventListener('pointerup', endResize);
+  };
+
+  /** ===== Preset Layouts ===== **/
+  const applyPresetLayout = (layoutId) => {
+    const rect = getCanvasRect();
+    if (!rect || !droppedImages.length) return;
+
+    const { width, height } = rect;
+    const images = [...droppedImages];
+
+    switch (layoutId) {
+      case 'fullscreen':
+        // Make first image fullscreen
+        if (images.length > 0) {
+          setDroppedImages([{
+            ...images[0],
+            position: { x: width / 2, y: height / 2 },
+            size: { w: width, h: height }
+          }]);
+        }
+        break;
+
+      case 'pip':
+        // Main image fullscreen + small overlay in bottom-right
+        if (images.length >= 2) {
+          setDroppedImages([
+            {
+              ...images[0],
+              position: { x: width / 2, y: height / 2 },
+              size: { w: width, h: height }
+            },
+            {
+              ...images[1],
+              position: { x: width * 0.8, y: height * 0.8 },
+              size: { w: width * 0.25, h: height * 0.25 }
+            }
+          ]);
+        }
+        break;
+
+      case 'side-by-side':
+        // Two images split 50/50
+        if (images.length >= 2) {
+          setDroppedImages([
+            {
+              ...images[0],
+              position: { x: width * 0.25, y: height / 2 },
+              size: { w: width * 0.5, h: height }
+            },
+            {
+              ...images[1],
+              position: { x: width * 0.75, y: height / 2 },
+              size: { w: width * 0.5, h: height }
+            }
+          ]);
+        }
+        break;
+
+      case 'quad':
+        // 2x2 grid for up to 4 images
+        const quadPositions = [
+          { x: 0.25, y: 0.25 },
+          { x: 0.75, y: 0.25 },
+          { x: 0.25, y: 0.75 },
+          { x: 0.75, y: 0.75 }
+        ];
+        setDroppedImages(
+          images.slice(0, 4).map((img, i) => ({
+            ...img,
+            position: {
+              x: width * quadPositions[i].x,
+              y: height * quadPositions[i].y
+            },
+            size: { w: width * 0.5, h: height * 0.5 }
+          }))
+        );
+        break;
+
+      case 'thirds':
+        // 2/3 left, 1/3 right
+        if (images.length >= 2) {
+          setDroppedImages([
+            {
+              ...images[0],
+              position: { x: width * 0.33, y: height / 2 },
+              size: { w: width * 0.66, h: height }
+            },
+            {
+              ...images[1],
+              position: { x: width * 0.83, y: height / 2 },
+              size: { w: width * 0.34, h: height }
+            }
+          ]);
+        }
+        break;
+
+      default:
+        break;
+    }
   };
 
   /** ===== Selection + Delete (keyboard) ===== **/
@@ -728,6 +885,14 @@ export const useDragAndDrop = () => {
     }
   }, []);
 
+  // Register global touch drop handler for mobile/iPad
+  useEffect(() => {
+    window.__videocallTouchDrop = handleDrop;
+    return () => {
+      delete window.__videocallTouchDrop;
+    };
+  }, [handleDrop]);
+
   useEffect(() => {
     return () => {
       window.removeEventListener('pointermove', onMove);
@@ -752,5 +917,6 @@ export const useDragAndDrop = () => {
     startMove,
     startResizeCorner,
     startResizeSide,
+    applyPresetLayout,
   };
 };

@@ -1,81 +1,82 @@
-import React, { useState, useEffect, useRef } from 'react';
-import logo from '../assets/logo.png';
-import houseIcon from '../assets/icon/House.png';
-import monitorPlayIcon from '../assets/icon/MonitorPlay.png';
-import pictureInPictureIcon from '../assets/icon/PictureInPicture.png';
-import videoCameraIcon from '../assets/icon/VideoCamera.png';
-import lightbulbIcon from '../assets/icon/Lightbulb.png';
-import lightningIcon from '../assets/icon/Lightning.png';
-import callBellIcon from '../assets/icon/CallBell.png';
-import settingsIcon from '../assets/icon/SettingsIcon.png';
-import logoutIcon from '../assets/icon/LogoutIcon.png';
+import React, { useState, useEffect, useRef } from "react";
+import logo from "../assets/logo.png";
+import houseIcon from "../assets/icon/House.png";
+import monitorPlayIcon from "../assets/icon/MonitorPlay.png";
+import pictureInPictureIcon from "../assets/icon/PictureInPicture.png";
+import videoCameraIcon from "../assets/icon/VideoCamera.png";
+import lightbulbIcon from "../assets/icon/Lightbulb.png";
+import lightningIcon from "../assets/icon/Lightning.png";
+import callBellIcon from "../assets/icon/CallBell.png";
+import settingsIcon from "../assets/icon/SettingsIcon.png";
+import logoutIcon from "../assets/icon/LogoutIcon.png";
 
 // Test streaming devices
 const TEST_DEVICES = [
-    {
-    id: 'vpx-hdmi-40',
-    name: 'VPX HDMI Input B',
-    ip: '192.168.100.40',
-    type: 'HDMI Source',
-    manufacturer: 'Aurora VPX',
-    streamUrl: 'http://192.168.100.40:8080/?action=stream&w=960&h=540&fps=15',
-    confidence: 100,
-    inputNumber: 2  // Aurora DIDO Input 2
-  },
-    {
-    id: 'vpx-hdmi-42',
-    name: 'VPX HDMI Input A',
-    ip: '192.168.100.42',
-    type: 'HDMI Source',
-    manufacturer: 'Aurora VPX',
-    streamUrl: 'http://192.168.100.42:8080/?action=stream&w=960&h=540&fps=15',
-    confidence: 100,
-    inputNumber: 1  // Aurora DIDO Input 1
-  },
   {
-    id: 'test-1',
-    name: 'Security Camera 1',
-    ip: '77.222.181.11',
-    type: 'IP Camera',
-    manufacturer: 'MJPEG Stream',
-    streamUrl: 'http://77.222.181.11:8080/mjpg/video.mjpg',
+    id: "vpx-hdmi-42",
+    name: "VPX HDMI Input A",
+    ip: "192.168.100.42",
+    type: "HDMI Source",
+    manufacturer: "Aurora VPX",
+    streamUrl: "http://192.168.100.42:8080/?action=stream&w=960&h=540&fps=15",
     confidence: 100,
-    inputNumber: 3  // Aurora DIDO Input 3
-  },
+    inputNumber: 1, // Aurora DIDO Input 1
+  },  
   {
-    id: 'test-2',
-    name: 'Japan Camera - Honjin',
-    ip: 'honjin1.miemasu.net',
-    type: 'IP Camera',
-    manufacturer: 'MJPEG Stream',
-    streamUrl: 'http://honjin1.miemasu.net/nphMotionJpeg?Resolution=640x480&Quality=Standard',
+    id: "vpx-hdmi-40",
+    name: "VPX HDMI Input B",
+    ip: "192.168.100.40",
+    type: "HDMI Source",
+    manufacturer: "Aurora VPX",
+    streamUrl: "http://192.168.100.40:8080/?action=stream&w=960&h=540&fps=15",
     confidence: 100,
-    inputNumber: 4  // Aurora DIDO Input 4
-  },
-  {
-    id: 'test-3',
-    name: 'Asia Pacific Camera',
-    ip: '61.211.241.239',
-    type: 'IP Camera',
-    manufacturer: 'MJPEG Stream',
-    streamUrl: 'http://61.211.241.239/nphMotionJpeg?Resolution=320x240&Quality=Standard',
-    confidence: 100,
-    inputNumber: 1  // Can reuse inputs for different scenarios
-  },
-  {
-    id: 'test-5',
-    name: 'Public Camera 5',
-    ip: '158.58.130.148',
-    type: 'IP Camera',
-    manufacturer: 'MJPEG Stream',
-    streamUrl: 'http://158.58.130.148/mjpg/video.mjpg',
-    confidence: 100,
-    inputNumber: 2  // Can reuse inputs for different scenarios
-  },
+    inputNumber: 2, // Aurora DIDO Input 2
+  }
+
+  // {
+  //   id: 'test-1',
+  //   name: 'Security Camera 1',
+  //   ip: '77.222.181.11',
+  //   type: 'IP Camera',
+  //   manufacturer: 'MJPEG Stream',
+  //   streamUrl: 'http://77.222.181.11:8080/mjpg/video.mjpg',
+  //   confidence: 100,
+  //   inputNumber: 3  // Aurora DIDO Input 3
+  // },
+  // {
+  //   id: 'test-2',
+  //   name: 'Japan Camera - Honjin',
+  //   ip: 'honjin1.miemasu.net',
+  //   type: 'IP Camera',
+  //   manufacturer: 'MJPEG Stream',
+  //   streamUrl: 'http://honjin1.miemasu.net/nphMotionJpeg?Resolution=640x480&Quality=Standard',
+  //   confidence: 100,
+  //   inputNumber: 4  // Aurora DIDO Input 4
+  // },
+  // {
+  //   id: 'test-3',
+  //   name: 'Asia Pacific Camera',
+  //   ip: '61.211.241.239',
+  //   type: 'IP Camera',
+  //   manufacturer: 'MJPEG Stream',
+  //   streamUrl: 'http://61.211.241.239/nphMotionJpeg?Resolution=320x240&Quality=Standard',
+  //   confidence: 100,
+  //   inputNumber: 1  // Can reuse inputs for different scenarios
+  // },
+  // {
+  //   id: 'test-5',
+  //   name: 'Public Camera 5',
+  //   ip: '158.58.130.148',
+  //   type: 'IP Camera',
+  //   manufacturer: 'MJPEG Stream',
+  //   streamUrl: 'http://158.58.130.148/mjpg/video.mjpg',
+  //   confidence: 100,
+  //   inputNumber: 2  // Can reuse inputs for different scenarios
+  // },
 ];
 
 const LeftSidebar = ({ onDragStart }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
 
   const navItems = [
     { icon: houseIcon, label: "Home", active: false },
@@ -93,104 +94,82 @@ const LeftSidebar = ({ onDragStart }) => {
   ];
 
   // Filter test devices based on search term
-  const filteredDevices = TEST_DEVICES.filter(device =>
-    device.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.ip.includes(searchTerm) ||
-    device.manufacturer.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredDevices = TEST_DEVICES.filter(
+    (device) =>
+      device.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      device.ip.includes(searchTerm) ||
+      device.manufacturer.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Simplified thumbnail component
+  // Live stream thumbnail component - uses MJPEG stream directly with auto-retry
   const StreamThumbnail = ({ device }) => {
-    const [thumbnailSrc, setThumbnailSrc] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
+    const imgRef = useRef(null);
 
-    const createFallbackImage = (text = 'OFFLINE') => {
-      const canvas = document.createElement('canvas');
+    const createFallbackImage = (text = "OFFLINE") => {
+      const canvas = document.createElement("canvas");
       canvas.width = 320;
       canvas.height = 180;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
 
       const colors = {
-        'IP Camera': '#3b82f6',
-        'Network Device': '#10b981',
-        'Router': '#8b5cf6',
-        'Server': '#f59e0b',
-        'PC': '#ef4444',
-        'Video Encoder': '#ec4899',
-        'Video Decoder': '#06b6d4',
-        'HDMI Source': '#f97316',
-        'Unknown': '#6b7280'
+        "IP Camera": "#3b82f6",
+        "Network Device": "#10b981",
+        Router: "#8b5cf6",
+        Server: "#f59e0b",
+        PC: "#ef4444",
+        "Video Encoder": "#ec4899",
+        "Video Decoder": "#06b6d4",
+        "HDMI Source": "#f97316",
+        Unknown: "#6b7280",
       };
 
-      ctx.fillStyle = colors[device.type] || colors['Unknown'];
+      ctx.fillStyle = colors[device.type] || colors["Unknown"];
       ctx.fillRect(0, 0, 320, 180);
-      ctx.fillStyle = 'white';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
+      ctx.fillStyle = "white";
+      ctx.font = "16px Arial";
+      ctx.textAlign = "center";
       ctx.fillText(device.type, 160, 70);
       ctx.fillText(text, 160, 100);
-      ctx.font = '12px Arial';
+      ctx.font = "12px Arial";
       ctx.fillText(device.ip, 160, 120);
 
       return canvas.toDataURL();
     };
 
+    // Auto-retry stream connection every 5 seconds if it fails
     useEffect(() => {
-      const thumbnailUrl = `http://${window.location.hostname}:5000/api/thumbnail?url=${encodeURIComponent(device.streamUrl)}`;
-
-      setIsLoading(true);
-      setHasError(false);
-
-      fetch(thumbnailUrl)
-        .then(response => {
-
-          if (response.ok) {
-            return response.blob();
-          }
-          throw new Error(`HTTP ${response.status} - ${response.statusText}`);
-        })
-        .then(blob => {
-          const url = URL.createObjectURL(blob);
-          setThumbnailSrc(url);
-          setIsLoading(false);
+      if (hasError) {
+        const retryTimer = setTimeout(() => {
+          console.log("🔄 Retrying stream for:", device.name);
           setHasError(false);
-        })
-        .catch(error => {
-          console.error('❌ Thumbnail error for:', device.name, error);
-          setThumbnailSrc(createFallbackImage('ERROR'));
-          setIsLoading(false);
-          setHasError(true);
-        });
-    }, [device.name, device.streamUrl]); // Include dependencies
+          setRetryKey(prev => prev + 1);
+        }, 5000);
 
-    if (isLoading) {
-      return (
-        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500"></div>
-          <span className="ml-2 text-gray-400 text-xs">Loading...</span>
-        </div>
-      );
-    }
+        return () => clearTimeout(retryTimer);
+      }
+    }, [hasError, device.name]);
 
     return (
       <div className="w-full h-full relative">
         <img
-          src={thumbnailSrc}
+          key={retryKey}
+          ref={imgRef}
+          src={device.streamUrl}
           alt={device.name}
           className="w-full h-full object-cover"
-          onError={() => {
-            console.error('🖼️ Image onError for:', device.name);
-            if (!hasError) {
-              setHasError(true);
-              setThumbnailSrc(createFallbackImage('NO SIGNAL'));
-            }
+          onError={(e) => {
+            console.error("🖼️ Stream error for:", device.name);
+            setHasError(true);
+            e.target.src = createFallbackImage("RECONNECTING...");
           }}
           onLoad={() => {
+            setHasError(false);
           }}
         />
         <div className="absolute top-1 right-1 text-xs text-white bg-black/50 rounded px-1">
-          {hasError ? 'ERROR' : 'OK'}
+          {hasError ? "RETRY..." : "LIVE"}
         </div>
       </div>
     );
@@ -201,7 +180,7 @@ const LeftSidebar = ({ onDragStart }) => {
       {/* Navigation Column */}
       <div className="w-3/12 border-r border-[#292929] flex flex-col items-center justify-between">
         <img src={logo} alt="Logo" className="img-fluid mb-8 mt-4" />
-        
+
         <div className="flex flex-col items-center space-y-4 flex-1 justify-center">
           {navItems.map((item, index) => (
             <button
@@ -278,7 +257,10 @@ const LeftSidebar = ({ onDragStart }) => {
 
         <div
           className="flex-1 overflow-y-auto"
-          style={{ scrollbarWidth: "thin", scrollbarColor: "transparent transparent" }}
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: "transparent transparent",
+          }}
         >
           <div className="space-y-4">
             {/* Show all test devices or filtered results */}
@@ -287,9 +269,9 @@ const LeftSidebar = ({ onDragStart }) => {
                 id: device.id,
                 name: device.name,
                 src: device.streamUrl,
-                type: 'mjpeg-stream',
+                type: "mjpeg-stream",
                 streamUrl: device.streamUrl,
-                device: device
+                device: device,
               };
 
               return (
@@ -302,7 +284,9 @@ const LeftSidebar = ({ onDragStart }) => {
                   <div className="aspect-video relative">
                     <StreamThumbnail device={device} />
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                      <div className="text-white text-xs font-medium">{device.name}</div>
+                      <div className="text-white text-xs font-medium">
+                        {device.name}
+                      </div>
                       <div className="text-gray-300 text-xs">{device.ip}</div>
                       <div className="text-green-400 text-xs">MJPEG Stream</div>
                     </div>
